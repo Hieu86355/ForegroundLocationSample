@@ -1,106 +1,133 @@
 package com.example.foregroundlocationsample
 
-import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import android.text.method.ScrollingMovementMethod
-import androidx.core.app.ActivityCompat
+import android.os.Handler
+import android.os.Looper
 import androidx.core.content.edit
+import androidx.lifecycle.Observer
+import com.example.foregroundlocationsample.utils.Constants.ACTION_START_OR_RESUME_SERVICE
+import com.example.foregroundlocationsample.utils.Constants.ACTION_STOP_SERVICE
+import com.example.foregroundlocationsample.utils.Constants.BUTTON_STATE
+import com.example.foregroundlocationsample.utils.Constants.PERMISSIONS_REQUEST_CODE
+import com.example.foregroundlocationsample.utils.Constants.START_STOP_PREFERENCE
 import com.example.foregroundlocationsample.databinding.ActivityMainBinding
-import com.google.android.material.snackbar.Snackbar
-import org.greenrobot.eventbus.EventBus
-import org.greenrobot.eventbus.ThreadMode
-
-import org.greenrobot.eventbus.Subscribe
-
-private const val PERMISSIONS_REQUEST_CODE = 1234
+import com.example.foregroundlocationsample.services.Polyline
+import com.example.foregroundlocationsample.services.TrackingLocationService
+import com.example.foregroundlocationsample.utils.PermissionUtil
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.model.CircleOptions
+import com.google.android.gms.maps.model.MarkerOptions
+import com.google.android.gms.maps.model.PolylineOptions
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
+
+    private var map: GoogleMap? = null
+
+    private var isTracking = false
+    private var pathPoints = mutableListOf<Polyline>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        EventBus.getDefault().register(this)
+        binding.mMapview.onCreate(savedInstanceState)
+        binding.mMapview.getMapAsync {
+            map = it
+            addAllPolylines()
+        }
 
-        // add scrollable textview
-        binding.locationTxt.movementMethod = ScrollingMovementMethod()
-
-        val switchSetting = getSharedPreferences("SWITCH", MODE_PRIVATE)
-        val isChecked = switchSetting.getBoolean("CHECKED_STATE", false)
-        binding.locationSwitch.isChecked = isChecked
-
-        binding.locationSwitch.setOnCheckedChangeListener { buttonView, isChecked ->
-            switchSetting.edit {
-                this.putBoolean("CHECKED_STATE", isChecked)
-                this.commit()
+        binding.btnStartStop.setOnClickListener {
+            if (PermissionUtil.isLocationPermissionApproved(this)) {
+                toggleTracking()
+            } else {
+                PermissionUtil.requestLocationPermissions(this)
             }
-            when (isChecked) {
-                true -> {
-                    if (permissionApproved()) {
-                        startService(Intent(this, LocationService::class.java))
-                    } else {
-                        requestPermissions()
-                    }
-                }
+        }
 
-                false -> {
-                    stopService(Intent(this, LocationService::class.java))
-                }
-            }
+        subscribeObservers()
+    }
+
+    private fun subscribeObservers() {
+        TrackingLocationService.isTracking.observe(this, Observer { isTracking ->
+            updateTracking(isTracking)
+        })
+
+        TrackingLocationService.pathPoints.observe(this, Observer { polylines ->
+            pathPoints = polylines
+            addLatestPolyline()
+            moveCameraToCurrentLocation()
+        })
+    }
+
+    private fun toggleTracking() {
+        if (isTracking) {
+            sendCommandToService(ACTION_STOP_SERVICE)
+        } else {
+            sendCommandToService(ACTION_START_OR_RESUME_SERVICE)
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        EventBus.getDefault().unregister(this)
+    private fun updateTracking(isTracking: Boolean) {
+        this.isTracking = isTracking
+        setButtonResource(isTracking)
     }
 
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    fun onMessageEvent(event: NewLocationEvent) {
-        val mLocation = event.location
-        binding.locationTxt.append("\nLocation: (${mLocation.latitude} - ${mLocation.longitude})")
+    private fun setButtonResource(isTracking: Boolean) {
+        val btnResource = if (isTracking) R.drawable.ic_baseline_stop_24 else R.drawable.ic_baseline_play_arrow_24
+        binding.btnStartStop.setImageResource(btnResource)
     }
 
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    fun onMessageEvent(event: StopServiceEvent) {
-        binding.locationSwitch.isChecked = false
-    }
-
-    private fun permissionApproved(): Boolean {
-        return PackageManager.PERMISSION_GRANTED == ActivityCompat.checkSelfPermission(
-            this,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        )
-    }
-
-    private fun requestPermissions() {
-        val provideRationale = permissionApproved()
-
-        // If the user denied a previous request, but didn't check "Don't ask again", provide
-        // additional rationale.
-        if (provideRationale) {
-            Snackbar.make(binding.root, "Permission denined!!!", Snackbar.LENGTH_LONG)
-                .setAction("OK") {
-                    // Request permission
-                    ActivityCompat.requestPermissions(
-                        this@MainActivity,
-                        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
-                        PERMISSIONS_REQUEST_CODE
-                    )
-                }
-                .show()
-        } else {
-            ActivityCompat.requestPermissions(
-                this@MainActivity,
-                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
-                PERMISSIONS_REQUEST_CODE
+    private fun moveCameraToCurrentLocation() {
+        if (pathPoints.isNotEmpty() && pathPoints.last().isNotEmpty()) {
+            map?.animateCamera(
+                CameraUpdateFactory.newLatLngZoom(pathPoints.last().last(), 15f)
             )
+        }
+    }
+
+    // Connect all polyline on the map incase configuration changes
+    private fun addAllPolylines() {
+        for (polyline in pathPoints) {
+            val polylineOptions = PolylineOptions()
+                .color(Color.RED)
+                .width(8f)
+                .addAll(polyline)
+            map?.addPolyline(polylineOptions)
+        }
+    }
+
+    // Connect the last point of the list to the new points
+    private fun addLatestPolyline() {
+        if (pathPoints.isNotEmpty() && pathPoints.last().size > 1) {
+            // Last second element inside of the last list
+            val preLastLatLng = pathPoints.last()[pathPoints.last().size - 2]
+
+            val lastLatLng = pathPoints.last().last()
+
+            val polylineOptions = PolylineOptions()
+                .color(Color.RED)
+                .width(8f)
+                .add(preLastLatLng)
+                .add(lastLatLng)
+
+            map?.addPolyline(polylineOptions)
+
+        }
+    }
+
+
+    private fun sendCommandToService(action: String) {
+        Intent(this, TrackingLocationService::class.java).also {
+            it.action = action
+            startService(it)
         }
     }
 
@@ -118,24 +145,48 @@ class MainActivity : AppCompatActivity() {
 
                 // Permission was granted.
                 grantResults[0] == PackageManager.PERMISSION_GRANTED -> {
-                    startService(Intent(this, LocationService::class.java))
+                    toggleTracking()
                 }
 
                 else -> {
                     // Permission denied.
-                    Snackbar.make(binding.root, "Permission denined!!!", Snackbar.LENGTH_LONG)
-                        .setAction("OK") {
-                            // Request permission
-                            ActivityCompat.requestPermissions(
-                                this@MainActivity,
-                                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
-                                PERMISSIONS_REQUEST_CODE
-                            )
-                        }
-                        .show()
                 }
             }
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        binding.mMapview.onStart()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        binding.mMapview.onResume()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        binding.mMapview.onStop()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        binding.mMapview.onStop()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        binding.mMapview.onDestroy()
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        binding.mMapview.onLowMemory()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        binding.mMapview.onSaveInstanceState(outState)
+    }
 }

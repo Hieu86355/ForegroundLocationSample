@@ -1,4 +1,4 @@
-package com.example.foregroundlocationsample
+package com.example.foregroundlocationsample.events
 
 import android.location.Location
 

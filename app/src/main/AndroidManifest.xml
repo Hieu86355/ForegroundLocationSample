@@ -15,6 +15,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.ForegroundLocationSample">
         <activity
+            android:launchMode="singleTask"
             android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
@@ -23,8 +24,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <meta-data android:name="com.google.android.gms.version"
+            android:value="@integer/google_play_services_version"/>
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${MAPS_API_KEY}" />
         <service
-            android:name=".LocationService"
+            android:name=".services.SampleLocationService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+        <service
+            android:name=".services.TrackingLocationService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="location" />

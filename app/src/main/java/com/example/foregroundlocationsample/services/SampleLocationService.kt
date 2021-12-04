@@ -1,4 +1,4 @@
-package com.example.foregroundlocationsample
+package com.example.foregroundlocationsample.services
 
 import android.annotation.SuppressLint
 import android.app.*
@@ -11,12 +11,15 @@ import android.os.IBinder
 import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import com.example.foregroundlocationsample.MainActivity
+import com.example.foregroundlocationsample.R
+import com.example.foregroundlocationsample.events.NewLocationEvent
+import com.example.foregroundlocationsample.events.StopServiceEvent
 import com.google.android.gms.location.*
 import org.greenrobot.eventbus.EventBus
 import java.util.concurrent.TimeUnit
 
-class LocationService: Service() {
+class SampleLocationService: Service() {
 
     private val localBinder = LocalBinder()
     private lateinit var notificationManager: NotificationManager
@@ -111,7 +114,7 @@ class LocationService: Service() {
             .bigText(locationText)
             .setBigContentTitle(title)
 
-        val cancelIntent = Intent(this, LocationService::class.java)
+        val cancelIntent = Intent(this, SampleLocationService::class.java)
         cancelIntent.putExtra(EXTRA_CANCEL_SERVICE, true)
 
         val servicePendingIntent = PendingIntent.getService(
@@ -140,8 +143,8 @@ class LocationService: Service() {
     }
 
     inner class LocalBinder: Binder() {
-        fun getBindServiceInstance(): LocationService {
-            return this@LocationService
+        fun getBindServiceInstance(): SampleLocationService {
+            return this@SampleLocationService
         }
     }
 
