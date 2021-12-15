@@ -5,24 +5,20 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import androidx.core.content.edit
+import android.text.method.ScrollingMovementMethod
+import android.view.View
 import androidx.lifecycle.Observer
+import com.example.foregroundlocationsample.databinding.ActivityMainBinding
 import com.example.foregroundlocationsample.utils.Constants.ACTION_START_OR_RESUME_SERVICE
 import com.example.foregroundlocationsample.utils.Constants.ACTION_STOP_SERVICE
-import com.example.foregroundlocationsample.utils.Constants.BUTTON_STATE
 import com.example.foregroundlocationsample.utils.Constants.PERMISSIONS_REQUEST_CODE
-import com.example.foregroundlocationsample.utils.Constants.START_STOP_PREFERENCE
-import com.example.foregroundlocationsample.databinding.ActivityMainBinding
 import com.example.foregroundlocationsample.services.Polyline
 import com.example.foregroundlocationsample.services.TrackingLocationService
 import com.example.foregroundlocationsample.utils.PermissionUtil
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
-import com.google.android.gms.maps.model.CircleOptions
-import com.google.android.gms.maps.model.MarkerOptions
-import com.google.android.gms.maps.model.PolylineOptions
+import com.google.android.gms.maps.model.*
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 
 class MainActivity : AppCompatActivity() {
 
@@ -52,7 +48,39 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        initBottomSheet()
+
         subscribeObservers()
+    }
+
+    private fun initBottomSheet() {
+        val mBottomSheet = BottomSheetBehavior.from(binding.bottomSheet.bottomSheetRootLayout)
+        binding.bottomSheet.bottomSheetRootLayout.setOnClickListener {
+            if (mBottomSheet.state == BottomSheetBehavior.STATE_EXPANDED) {
+                mBottomSheet.state = BottomSheetBehavior.STATE_COLLAPSED
+            } else if (mBottomSheet.state == BottomSheetBehavior.STATE_COLLAPSED) {
+                mBottomSheet.state = BottomSheetBehavior.STATE_EXPANDED
+            }
+        }
+        mBottomSheet.addBottomSheetCallback(object : BottomSheetBehavior.BottomSheetCallback() {
+            override fun onSlide(bottomSheet: View, slideOffset: Float) = Unit
+            override fun onStateChanged(bottomSheet: View, newState: Int) {
+                when(newState) {
+                    BottomSheetBehavior.STATE_EXPANDED -> { // Expanded
+                        binding.btnStartStop.hide()
+                        mBottomSheet.isDraggable = false
+                    }
+
+                    BottomSheetBehavior.STATE_COLLAPSED -> { // Collapsed
+                        binding.btnStartStop.show()
+                        mBottomSheet.isDraggable = true
+                    }
+
+                }
+            }
+        })
+        // Add scrollable for textview
+        binding.bottomSheet.txtGnssStatus.movementMethod = ScrollingMovementMethod()
     }
 
     private fun subscribeObservers() {
@@ -65,6 +93,36 @@ class MainActivity : AppCompatActivity() {
             addLatestPolyline()
             moveCameraToCurrentLocation()
         })
+
+        TrackingLocationService.currentGnssStatus.observe(this, Observer {
+            var list = mutableListOf<String>()
+            for (consIndex in 0..(it.satelliteCount - 1)) {
+                val type = it.getConstellationType(consIndex)
+                list.add(getConstellationType(type))
+            }
+            var displayList = ""
+            for (consType in list) {
+                displayList += "\n Constellation Type :: $consType"
+            }
+            displayList += "\n--------------------------"
+
+            binding.bottomSheet.txtGnssStatus.append(displayList)
+
+        })
+    }
+
+    private fun getConstellationType(type: Int): String {
+        return when(type) {
+            0 -> "UNKNOWN"
+            1 -> "GPS"
+            2 -> "SBAS"
+            3 -> "GLONASS"
+            4 -> "QZSS"
+            5 -> "BEIDOU"
+            6 -> "GALILEO"
+            7 -> "IRNSS"
+            else -> "UNKNOWN"
+        }
     }
 
     private fun toggleTracking() {
@@ -88,7 +146,7 @@ class MainActivity : AppCompatActivity() {
     private fun moveCameraToCurrentLocation() {
         if (pathPoints.isNotEmpty() && pathPoints.last().isNotEmpty()) {
             map?.animateCamera(
-                CameraUpdateFactory.newLatLngZoom(pathPoints.last().last(), 15f)
+                CameraUpdateFactory.newLatLngZoom(pathPoints.last().last(), 20f)
             )
         }
     }
@@ -118,11 +176,15 @@ class MainActivity : AppCompatActivity() {
                 .add(preLastLatLng)
                 .add(lastLatLng)
 
-            map?.addPolyline(polylineOptions)
+            val markerOptions = MarkerOptions()
+                .position(lastLatLng)
+                .icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_location))
+                .alpha(0.7f)
 
+            map?.addPolyline(polylineOptions)
+            map?.addMarker(markerOptions)
         }
     }
-
 
     private fun sendCommandToService(action: String) {
         Intent(this, TrackingLocationService::class.java).also {

@@ -16,6 +16,6 @@ object Constants {
     const val START_STOP_PREFERENCE = "START_STOP_PREFERENCE"
     const val BUTTON_STATE = "BUTTON_STATE"
 
-    const val LOCATION_UPDATE_INTERVAL = 5000L
-    const val FASTED_LOCATION_INTERVAL = 2000L // minimum interval to get location update
+    const val LOCATION_UPDATE_INTERVAL = 15000L
+    const val FASTED_LOCATION_INTERVAL = 10000L // minimum interval to get location update
 }
