@@ -6,6 +6,7 @@ import android.graphics.Color
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.text.method.ScrollingMovementMethod
+import android.util.Log
 import android.view.View
 import androidx.lifecycle.Observer
 import com.example.foregroundlocationsample.databinding.ActivityMainBinding
@@ -94,7 +95,7 @@ class MainActivity : AppCompatActivity() {
             moveCameraToCurrentLocation()
         })
 
-        TrackingLocationService.currentGnssStatus.observe(this, Observer {
+        /*TrackingLocationService.currentGnssStatus.observe(this, Observer {
             var list = mutableListOf<String>()
             for (consIndex in 0..(it.satelliteCount - 1)) {
                 val type = it.getConstellationType(consIndex)
@@ -108,6 +109,10 @@ class MainActivity : AppCompatActivity() {
 
             binding.bottomSheet.txtGnssStatus.append(displayList)
 
+        })*/
+
+        TrackingLocationService.currentRawGnssData.observe(this, Observer {
+            binding.bottomSheet.txtGnssStatus.append(it.toString())
         })
     }
 

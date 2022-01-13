@@ -3,6 +3,7 @@ package com.example.foregroundlocationsample.services
 import android.annotation.SuppressLint
 import android.app.NotificationManager
 import android.content.Intent
+import android.location.GnssMeasurementsEvent
 import android.location.GnssStatus
 import android.location.Location
 import android.location.LocationManager
@@ -10,10 +11,10 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import android.widget.Toast
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.Observer
+import com.example.foregroundlocationsample.models.RawGnssData
 import com.example.foregroundlocationsample.utils.Constants.ACTION_START_OR_RESUME_SERVICE
 import com.example.foregroundlocationsample.utils.Constants.ACTION_STOP_SERVICE
 import com.example.foregroundlocationsample.utils.Constants.FASTED_LOCATION_INTERVAL
@@ -34,6 +35,7 @@ class TrackingLocationService : LifecycleService() {
         val isTracking = MutableLiveData<Boolean>()
         val pathPoints = MutableLiveData<Polylines>()
         val currentGnssStatus = MutableLiveData<GnssStatus>()
+        val currentRawGnssData = MutableLiveData<RawGnssData>()
     }
 
     var isForegroundServiceRunning = false
@@ -42,12 +44,20 @@ class TrackingLocationService : LifecycleService() {
 
     lateinit var locationManager: LocationManager
 
-    var gnssStatus : GnssStatus? = null;
+    var gnssStatus : GnssStatus? = null
+    var rawGnssData: RawGnssData? = null
 
     val gnssCallback = object : GnssStatus.Callback() {
         override fun onSatelliteStatusChanged(status: GnssStatus) {
             gnssStatus = status
         }
+    }
+
+    val rawGnssCallback = object: GnssMeasurementsEvent.Callback() {
+        override fun onGnssMeasurementsReceived(eventArgs: GnssMeasurementsEvent?) {
+            rawGnssData = RawGnssData(eventArgs)
+        }
+
     }
 
     val locationCallback = object : LocationCallback() {
@@ -63,6 +73,9 @@ class TrackingLocationService : LifecycleService() {
 
             gnssStatus?.let {
                 currentGnssStatus.postValue(it)
+            }
+            rawGnssData?.let {
+                currentRawGnssData.postValue(it)
             }
         }
     }
@@ -124,6 +137,7 @@ class TrackingLocationService : LifecycleService() {
 
                 // Register location gnss status
                 locationManager.registerGnssStatusCallback(gnssCallback, Handler(Looper.getMainLooper()))
+                locationManager.registerGnssMeasurementsCallback(rawGnssCallback, Handler(Looper.getMainLooper()))
             }
         } else {
             // unregister location update callback
@@ -131,6 +145,9 @@ class TrackingLocationService : LifecycleService() {
 
             // unregister gnss status callback
             locationManager.unregisterGnssStatusCallback(gnssCallback)
+
+            // unregister raw gnss measurement callback
+            locationManager.unregisterGnssMeasurementsCallback(rawGnssCallback)
         }
     }
 
