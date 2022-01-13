@@ -1,5 +1,6 @@
 package com.example.foregroundlocationsample.utils
 
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -14,6 +15,7 @@ import com.example.foregroundlocationsample.R
 
 object NotificationUtil {
 
+    @SuppressLint("UnspecifiedImmutableFlag")
     fun createNotification(context: Context): Notification {
         val style = NotificationCompat
             .BigTextStyle()
@@ -23,10 +25,15 @@ object NotificationUtil {
         val launchActivityIntent = Intent(context, MainActivity::class.java).also {
             it.flags = Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
         }
-        val activityPendingIntent = PendingIntent.getActivity(
-            context, 0, launchActivityIntent, 0
-        )
-
+        val activityPendingIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            PendingIntent.getActivity(
+                context, 0, launchActivityIntent, PendingIntent.FLAG_IMMUTABLE
+            )
+        } else {
+            PendingIntent.getActivity(
+                context, 0, launchActivityIntent, 0
+            )
+        }
         val notificationBuilder = NotificationCompat
             .Builder(context, Constants.NOTIFICATION_CHANNEL_ID)
             .setStyle(style)
