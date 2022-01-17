@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.widget.Toast
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.Observer
@@ -25,6 +26,10 @@ import com.example.foregroundlocationsample.utils.NotificationUtil.createNotific
 import com.example.foregroundlocationsample.utils.PermissionUtil
 import com.google.android.gms.location.*
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.CameraUpdateFactory
+
+
+
 
 private const val TAG = "TrackingLocationService"
 typealias Polyline = MutableList<LatLng>
@@ -66,6 +71,8 @@ class TrackingLocationService : LifecycleService() {
                 result?.locations?.let { locations ->
                     for (location in locations) {
                         Log.d(TAG, "New location: ${location.latitude} : ${location.longitude}")
+                        //Toast.makeText(this@TrackingLocationService,"${location.latitude} : ${location.longitude} : ${location.altitude}", Toast.LENGTH_LONG).show()
+
                         addPathPoint(location)
                     }
                 }
@@ -127,7 +134,7 @@ class TrackingLocationService : LifecycleService() {
                     fastestInterval = FASTED_LOCATION_INTERVAL
                     priority = LocationRequest.PRIORITY_HIGH_ACCURACY
                     // the smallest displacement in meters the user must move between location updates.
-                    smallestDisplacement = 5.0f
+                    //smallestDisplacement = 5.0f
                 }
                 fusedLocationProviderClient.requestLocationUpdates(
                     request,

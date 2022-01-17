@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">ForegroundLocationSample</string>
+    <string name="map_api_key">AIzaSyA1tYqJyCdU6kjPyKKnWea28R1ESqGEXAs</string>
 </resources>
