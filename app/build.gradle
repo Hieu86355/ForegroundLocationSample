@@ -60,4 +60,6 @@ dependencies {
 
     implementation project(':pseudorange')
 
+    implementation 'com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava'
+
 }
