@@ -22,6 +22,7 @@ import com.example.foregroundlocationsample.utils.Constants.NOTIFICATION_ID
 import com.example.foregroundlocationsample.utils.NotificationUtil.createNotification
 import com.example.foregroundlocationsample.utils.NotificationUtil.createNotificationChannel
 import com.example.foregroundlocationsample.utils.PermissionUtil
+import com.example.foregroundlocationsample.utils.Util
 import com.google.android.gms.location.*
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.maps.model.LatLng
@@ -42,6 +43,8 @@ class TrackingLocationService : LifecycleService() {
         val mPseudorangePositionVelocityFromRealTimeEvents = PseudorangePositionVelocityFromRealTimeEvents()
     }
 
+    var isWritedToObject = false
+    val rawGNSSList = mutableListOf<RawGnssData>()
     lateinit var mThread: HandlerThread
     lateinit var mHandler: Handler
 
@@ -66,9 +69,18 @@ class TrackingLocationService : LifecycleService() {
             val r = Runnable {
                 mPseudorangePositionVelocityFromRealTimeEvents
                     .computePositionVelocitySolutionsFromRawMeas(eventArgs)
+                rawGNSSList.add(RawGnssData(eventArgs))
             }
-            mHandler.post(r)
-         }
+            val posSolution =
+                TrackingLocationService.mPseudorangePositionVelocityFromRealTimeEvents.positionSolutionLatLngDeg
+            if (posSolution[0].isNaN()) {
+                mHandler.post(r)
+                Log.d("hieu", "onGnssMeasurementsReceived: ${rawGNSSList.size}")
+            } else if (!isWritedToObject) {
+                isWritedToObject = true
+                Util.writeObjectToFile(rawGNSSList, this@TrackingLocationService)
+            }
+        }
 
     }
 
