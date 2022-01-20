@@ -3,12 +3,10 @@ package com.example.foregroundlocationsample.services
 import android.annotation.SuppressLint
 import android.app.NotificationManager
 import android.content.Intent
-import android.location.GnssMeasurementsEvent
-import android.location.GnssStatus
-import android.location.Location
-import android.location.LocationManager
+import android.location.*
 import android.os.Build
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
 import android.util.Log
 import android.widget.Toast
@@ -25,10 +23,10 @@ import com.example.foregroundlocationsample.utils.NotificationUtil.createNotific
 import com.example.foregroundlocationsample.utils.NotificationUtil.createNotificationChannel
 import com.example.foregroundlocationsample.utils.PermissionUtil
 import com.google.android.gms.location.*
+import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.CameraUpdateFactory
-
-
+import com.google.location.lbs.gnss.gps.pseudorange.PseudorangePositionVelocityFromRealTimeEvents
 
 
 private const val TAG = "TrackingLocationService"
@@ -41,7 +39,11 @@ class TrackingLocationService : LifecycleService() {
         val pathPoints = MutableLiveData<Polylines>()
         val currentGnssStatus = MutableLiveData<GnssStatus>()
         val currentRawGnssData = MutableLiveData<RawGnssData>()
+        val mPseudorangePositionVelocityFromRealTimeEvents = PseudorangePositionVelocityFromRealTimeEvents()
     }
+
+    lateinit var mThread: HandlerThread
+    lateinit var mHandler: Handler
 
     var isForegroundServiceRunning = false
 
@@ -61,8 +63,19 @@ class TrackingLocationService : LifecycleService() {
     val rawGnssCallback = object: GnssMeasurementsEvent.Callback() {
         override fun onGnssMeasurementsReceived(eventArgs: GnssMeasurementsEvent?) {
             rawGnssData = RawGnssData(eventArgs)
-        }
+            val r = Runnable {
+                mPseudorangePositionVelocityFromRealTimeEvents
+                    .computePositionVelocitySolutionsFromRawMeas(eventArgs)
+            }
+            mHandler.post(r)
+         }
 
+    }
+
+    val navigationMessageCallback = object: GnssNavigationMessage.Callback() {
+        override fun onGnssNavigationMessageReceived(event: GnssNavigationMessage?) {
+            mPseudorangePositionVelocityFromRealTimeEvents.parseHwNavigationMessageUpdates(event)
+        }
     }
 
     val locationCallback = object : LocationCallback() {
@@ -77,7 +90,11 @@ class TrackingLocationService : LifecycleService() {
                     }
                 }
             }
-
+            mPseudorangePositionVelocityFromRealTimeEvents.setReferencePosition(
+                (result.lastLocation.latitude * 1E7).toInt(),
+                (result.lastLocation.longitude * 1E7).toInt(),
+                (result.lastLocation.altitude * 1E7).toInt()
+            )
             gnssStatus?.let {
                 currentGnssStatus.postValue(it)
             }
@@ -98,6 +115,10 @@ class TrackingLocationService : LifecycleService() {
             isForegroundServiceRunning = it
             updateLocationTracking(it)
         })
+
+        mThread = HandlerThread("test")
+        mThread.start()
+        mHandler = Handler(mThread.looper)
 
     }
 
@@ -145,6 +166,7 @@ class TrackingLocationService : LifecycleService() {
                 // Register location gnss status
                 locationManager.registerGnssStatusCallback(gnssCallback, Handler(Looper.getMainLooper()))
                 locationManager.registerGnssMeasurementsCallback(rawGnssCallback, Handler(Looper.getMainLooper()))
+                locationManager.registerGnssNavigationMessageCallback(navigationMessageCallback, Handler(Looper.getMainLooper()))
             }
         } else {
             // unregister location update callback
@@ -155,6 +177,8 @@ class TrackingLocationService : LifecycleService() {
 
             // unregister raw gnss measurement callback
             locationManager.unregisterGnssMeasurementsCallback(rawGnssCallback)
+
+            locationManager.unregisterGnssNavigationMessageCallback(navigationMessageCallback)
         }
     }
 

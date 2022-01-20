@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.text.method.ScrollingMovementMethod
 import android.util.Log
 import android.view.View
+import android.widget.Toast
 import androidx.lifecycle.Observer
 import com.example.foregroundlocationsample.databinding.ActivityMainBinding
 import com.example.foregroundlocationsample.utils.Constants.ACTION_START_OR_RESUME_SERVICE
@@ -20,6 +21,7 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.*
 import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.location.lbs.gnss.gps.pseudorange.PseudorangePositionVelocityFromRealTimeEvents
 
 class MainActivity : AppCompatActivity() {
 
@@ -113,6 +115,9 @@ class MainActivity : AppCompatActivity() {
 
         TrackingLocationService.currentRawGnssData.observe(this, Observer {
             binding.bottomSheet.txtGnssStatus.append(it.toString())
+            val posSolution =
+                TrackingLocationService.mPseudorangePositionVelocityFromRealTimeEvents.positionSolutionLatLngDeg
+            Toast.makeText(this, "${posSolution[0]} - ${posSolution[1]}", Toast.LENGTH_SHORT).show()
         })
     }
 
