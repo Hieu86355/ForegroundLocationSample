@@ -116,6 +116,12 @@ class TrackingLocationService : LifecycleService() {
         }
     }
 
+    val nmeaMessageListener = object : OnNmeaMessageListener {
+        override fun onNmeaMessage(message: String?, timestamp: Long) {
+            Log.d("hieu", "onNmeaMessage: $message")
+        }
+    }
+
 
     override fun onCreate() {
         super.onCreate()
@@ -179,6 +185,7 @@ class TrackingLocationService : LifecycleService() {
                 locationManager.registerGnssStatusCallback(gnssCallback, Handler(Looper.getMainLooper()))
                 locationManager.registerGnssMeasurementsCallback(rawGnssCallback, Handler(Looper.getMainLooper()))
                 locationManager.registerGnssNavigationMessageCallback(navigationMessageCallback, Handler(Looper.getMainLooper()))
+                locationManager.addNmeaListener(nmeaMessageListener, Handler(Looper.getMainLooper()))
             }
         } else {
             // unregister location update callback
