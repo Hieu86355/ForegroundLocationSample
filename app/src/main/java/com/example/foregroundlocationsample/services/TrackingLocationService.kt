@@ -23,6 +23,7 @@ import com.example.foregroundlocationsample.utils.NotificationUtil.createNotific
 import com.example.foregroundlocationsample.utils.NotificationUtil.createNotificationChannel
 import com.example.foregroundlocationsample.utils.PermissionUtil
 import com.example.foregroundlocationsample.utils.Util
+import com.example.foregroundlocationsample.utils.WriteXML
 import com.google.android.gms.location.*
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.maps.model.LatLng
@@ -78,7 +79,8 @@ class TrackingLocationService : LifecycleService() {
                 Log.d("hieu", "onGnssMeasurementsReceived: ${rawGNSSList.size}")
             } else if (!isWritedToObject) {
                 isWritedToObject = true
-                Util.writeObjectToFile(rawGNSSList, this@TrackingLocationService)
+                //Util.writeObjectToFile(rawGNSSList, this@TrackingLocationService)
+                WriteXML.createGnssXML(rawGNSSList, this@TrackingLocationService)
             }
         }
 
