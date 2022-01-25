@@ -15,10 +15,8 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import javax.xml.parsers.DocumentBuilder;
@@ -42,6 +40,9 @@ public class WriteXML {
         document.appendChild(gnssElement);
 
         for (RawGnssData raw : rawData) {
+            if (raw.getMeasurements() == null || raw.getMeasurements().size() <= 0) {
+                continue;
+            }
             // raw element
             Element rawElement = document.createElement("raw");
             gnssElement.appendChild(rawElement);
