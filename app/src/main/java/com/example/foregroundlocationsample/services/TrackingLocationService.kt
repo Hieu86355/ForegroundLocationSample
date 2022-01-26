@@ -3,12 +3,10 @@ package com.example.foregroundlocationsample.services
 import android.annotation.SuppressLint
 import android.app.NotificationManager
 import android.content.Intent
-import android.location.GnssMeasurementsEvent
-import android.location.GnssStatus
-import android.location.Location
-import android.location.LocationManager
+import android.location.*
 import android.os.Build
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
 import android.util.Log
 import android.widget.Toast
@@ -24,11 +22,13 @@ import com.example.foregroundlocationsample.utils.Constants.NOTIFICATION_ID
 import com.example.foregroundlocationsample.utils.NotificationUtil.createNotification
 import com.example.foregroundlocationsample.utils.NotificationUtil.createNotificationChannel
 import com.example.foregroundlocationsample.utils.PermissionUtil
+import com.example.foregroundlocationsample.utils.Util
+import com.example.foregroundlocationsample.utils.WriteXML
 import com.google.android.gms.location.*
+import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.CameraUpdateFactory
-
-
+import com.google.location.lbs.gnss.gps.pseudorange.PseudorangePositionVelocityFromRealTimeEvents
 
 
 private const val TAG = "TrackingLocationService"
@@ -41,7 +41,13 @@ class TrackingLocationService : LifecycleService() {
         val pathPoints = MutableLiveData<Polylines>()
         val currentGnssStatus = MutableLiveData<GnssStatus>()
         val currentRawGnssData = MutableLiveData<RawGnssData>()
+        val mPseudorangePositionVelocityFromRealTimeEvents = PseudorangePositionVelocityFromRealTimeEvents()
     }
+
+    var isWritedToObject = false
+    val rawGNSSList = mutableListOf<RawGnssData>()
+    lateinit var mThread: HandlerThread
+    lateinit var mHandler: Handler
 
     var isForegroundServiceRunning = false
 
@@ -61,8 +67,33 @@ class TrackingLocationService : LifecycleService() {
     val rawGnssCallback = object: GnssMeasurementsEvent.Callback() {
         override fun onGnssMeasurementsReceived(eventArgs: GnssMeasurementsEvent?) {
             rawGnssData = RawGnssData(eventArgs)
+            if (!isWritedToObject) {
+                rawGNSSList.add(RawGnssData(eventArgs))
+                Log.d("hieu", "add raw measurement to list")
+            }
+            val r = Runnable {
+                mPseudorangePositionVelocityFromRealTimeEvents
+                    .computePositionVelocitySolutionsFromRawMeas(eventArgs)
+            }
+            val posSolution =
+                TrackingLocationService.mPseudorangePositionVelocityFromRealTimeEvents.positionSolutionLatLngDeg
+            if (posSolution[0].isNaN()) {
+                mHandler.post(r)
+                //Log.d("hieu", "onGnssMeasurementsReceived: ${rawGNSSList.size}")
+            }
+//            else if (!isWritedToObject) {
+//                isWritedToObject = true
+//                //Util.writeObjectToFile(rawGNSSList, this@TrackingLocationService)
+//                WriteXML.createGnssXML(rawGNSSList, this@TrackingLocationService)
+//            }
         }
 
+    }
+
+    val navigationMessageCallback = object: GnssNavigationMessage.Callback() {
+        override fun onGnssNavigationMessageReceived(event: GnssNavigationMessage?) {
+            mPseudorangePositionVelocityFromRealTimeEvents.parseHwNavigationMessageUpdates(event)
+        }
     }
 
     val locationCallback = object : LocationCallback() {
@@ -77,12 +108,29 @@ class TrackingLocationService : LifecycleService() {
                     }
                 }
             }
-
+            mPseudorangePositionVelocityFromRealTimeEvents.setReferencePosition(
+                (result.lastLocation.latitude * 1E7).toInt(),
+                (result.lastLocation.longitude * 1E7).toInt(),
+                (result.lastLocation.altitude * 1E7).toInt()
+            )
             gnssStatus?.let {
                 currentGnssStatus.postValue(it)
             }
             rawGnssData?.let {
                 currentRawGnssData.postValue(it)
+            }
+        }
+    }
+
+    val nmeaMessageListener = object : OnNmeaMessageListener {
+        override fun onNmeaMessage(message: String?, timestamp: Long) {
+            if (message != null && message.contains("GGA", true) && !isWritedToObject) {
+                val parts = message.split(",");
+                if (parts[2].isNotEmpty() && parts[3].isNotEmpty() && parts[4].isNotEmpty() && parts[5].isNotEmpty()) {
+                    isWritedToObject = true
+                    WriteXML.createGnssXML(rawGNSSList, this@TrackingLocationService)
+                    Log.d("hieu", "onNmeaMessage: $parts")
+                }
             }
         }
     }
@@ -98,6 +146,10 @@ class TrackingLocationService : LifecycleService() {
             isForegroundServiceRunning = it
             updateLocationTracking(it)
         })
+
+        mThread = HandlerThread("test")
+        mThread.start()
+        mHandler = Handler(mThread.looper)
 
     }
 
@@ -145,6 +197,12 @@ class TrackingLocationService : LifecycleService() {
                 // Register location gnss status
                 locationManager.registerGnssStatusCallback(gnssCallback, Handler(Looper.getMainLooper()))
                 locationManager.registerGnssMeasurementsCallback(rawGnssCallback, Handler(Looper.getMainLooper()))
+                locationManager.registerGnssNavigationMessageCallback(navigationMessageCallback, Handler(Looper.getMainLooper()))
+                locationManager.addNmeaListener(nmeaMessageListener, Handler(Looper.getMainLooper()))
+
+                if (rawGNSSList.size > 0) {
+                    rawGNSSList.clear()
+                }
             }
         } else {
             // unregister location update callback
@@ -155,6 +213,8 @@ class TrackingLocationService : LifecycleService() {
 
             // unregister raw gnss measurement callback
             locationManager.unregisterGnssMeasurementsCallback(rawGnssCallback)
+
+            locationManager.unregisterGnssNavigationMessageCallback(navigationMessageCallback)
         }
     }
 
