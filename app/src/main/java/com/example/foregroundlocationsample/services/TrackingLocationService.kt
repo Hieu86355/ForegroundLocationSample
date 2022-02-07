@@ -23,6 +23,7 @@ import com.example.foregroundlocationsample.utils.NotificationUtil.createNotific
 import com.example.foregroundlocationsample.utils.NotificationUtil.createNotificationChannel
 import com.example.foregroundlocationsample.utils.PermissionUtil
 import com.example.foregroundlocationsample.utils.Util
+import com.example.foregroundlocationsample.utils.Util.is4GpsSatellite
 import com.example.foregroundlocationsample.utils.WriteXML
 import com.google.android.gms.location.*
 import com.google.android.gms.location.LocationRequest
@@ -58,6 +59,8 @@ class TrackingLocationService : LifecycleService() {
     var gnssStatus : GnssStatus? = null
     var rawGnssData: RawGnssData? = null
 
+    var tempRawGnss: GnssMeasurementsEvent? = null
+
     val gnssCallback = object : GnssStatus.Callback() {
         override fun onSatelliteStatusChanged(status: GnssStatus) {
             gnssStatus = status
@@ -71,15 +74,17 @@ class TrackingLocationService : LifecycleService() {
                 rawGNSSList.add(RawGnssData(eventArgs))
                 Log.d("hieu", "add raw measurement to list")
             }
-            val r = Runnable {
-                mPseudorangePositionVelocityFromRealTimeEvents
-                    .computePositionVelocitySolutionsFromRawMeas(eventArgs)
+
+            if (is4GpsSatellite(eventArgs) && tempRawGnss == null) {
+                tempRawGnss = eventArgs
             }
-            val posSolution =
-                TrackingLocationService.mPseudorangePositionVelocityFromRealTimeEvents.positionSolutionLatLngDeg
-            if (posSolution[0].isNaN()) {
+
+            if (tempRawGnss != null) {
+                val r = Runnable {
+                    mPseudorangePositionVelocityFromRealTimeEvents
+                        .computePositionVelocitySolutionsFromRawMeas(tempRawGnss)
+                }
                 mHandler.post(r)
-                //Log.d("hieu", "onGnssMeasurementsReceived: ${rawGNSSList.size}")
             }
 //            else if (!isWritedToObject) {
 //                isWritedToObject = true

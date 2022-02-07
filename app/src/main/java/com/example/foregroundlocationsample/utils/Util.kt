@@ -1,6 +1,8 @@
 package com.example.foregroundlocationsample.utils
 
 import android.content.Context
+import android.location.GnssMeasurementsEvent
+import android.location.GnssStatus
 import android.util.Log
 import com.example.foregroundlocationsample.models.RawGnssData
 import java.io.File
@@ -23,5 +25,18 @@ object Util {
         } catch (ex: Exception) {
             ex.printStackTrace()
         }
+    }
+
+    fun is4GpsSatellite(event: GnssMeasurementsEvent?): Boolean {
+        if (event == null) {
+            return false
+        }
+        var count = 0;
+        for (measurement in event.measurements) {
+            if (measurement.constellationType == GnssStatus.CONSTELLATION_GPS) {
+                count++
+            }
+        }
+        return count >= 4
     }
 }
